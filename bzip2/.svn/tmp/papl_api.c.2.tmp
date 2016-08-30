@@ -1,0 +1,248 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <string.h> 	// memcpy
+
+//#include <signal.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
+#include <fcntl.h>		// for mmap
+#include <errno.h>
+#include <sys/mman.h>
+
+#include "papl.h"
+
+#define merge_table(a, b) merge_table[a * merge_table_row + b]
+#define scan_table(a, b) scan_table[a * scan_table_row + b]
+
+<<<<<<< .mine
+#define p_num		(workers + 1)
+=======
+#define SCANNER	0
+#define p_num		(WORKERS + 1)
+>>>>>>> .r135
+#define p_scanning	0
+
+int err_detect (unsigned int index, long *scan_table, long *merge_table ) {
+	if( scan_table((index+1), 1) != merge_table(index,0) ) {
+		if( scan_table((index+1), 1) != -1 ) {
+			printf("ERROR !!!! block: %d\n", index);
+			//printf("%d\t%8ld\t%8ld\t%d\n",
+					//index,
+					//scan_table((index+1), 1)
+					//,merge_table(index, 0)
+					//,scan_table((index+1),1) - merge_table(index,0));
+		}
+	}
+}
+
+
+void papl_exec() {
+	pid_t pid[p_num];
+	int i, offset, process_num;
+	long pos, file_size;
+	unsigned int index, len;
+
+	/* Get file size */ 
+	if( papl.fp == NULL ) {
+		printf("input open\n");
+		papl.fp = fopen(papl.input, "rb");
+	}
+	fseek(papl.fp, 0L, SEEK_END);
+	file_size = ftell(papl.fp);
+	rewind(papl.fp);
+
+	/* shared memory */
+	char *mem;
+	long *scan_table;
+	long *merge_table;
+
+	mem = mmap(0, mem_len, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	if (mem == MAP_FAILED) fprintf(stderr, "  mmap mem failed: %s\n", strerror(errno));
+
+	scan_table = mmap(0, scan_table_len * sizeof(long), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	if (scan_table == MAP_FAILED) fprintf(stderr, "  mmap scan table failed: %s\n", strerror(errno));
+
+
+	merge_table = mmap(0, merge_table_len * sizeof(long), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	if (merge_table == MAP_FAILED) fprintf(stderr, "  mmap merge table failed: %s\n", strerror(errno));
+
+	memset( scan_table, 0, scan_table_len * sizeof(long) );
+	memset( merge_table, 0, merge_table_len * sizeof(long) );
+
+	index = offset = 0;
+
+	long ttime;
+
+	process_num = 0;
+create_process:
+	switch (pid[process_num] = fork()) {
+		case -1:
+			fprintf(stderr, "  ERROR @ fork\n");
+			exit(-1);
+
+		case 0:
+			switch (process_num) {
+				case SCANNER:		// scanning
+					pt1("@@@@ Scanner(%d) created\n", getpid());
+
+					get_time();
+					index = papl.scan( papl.fp, scan_table );
+
+					//printf("scanner: ");
+					print_time(ttime);
+					//fclose(papl.fp);
+
+<<<<<<< .mine
+					for(i=0; i<workers; i++, index++)
+						scan_table[ index*scan_table_row ] = -1;
+=======
+					for(i=0; i<WORKERS; i++, index++)
+						scan_table(index, 0) = -1;
+>>>>>>> .r135
+
+					for(i=0;i<index; i++)
+						printf("%d\t%ld\t%ld\n", i, scan_table(i,0), scan_table(i,1));
+
+					pt0("@@@@ Scanner process exit\n");
+					exit(0);
+
+				default:	// do_work
+					pt2("@@@@ Worker%d(%d) created\n", process_num, getpid());
+					//papl.fp = fopen(papl.input, "rb");
+
+					index = process_num - 1;
+					for(;;) {
+<<<<<<< .mine
+						pos = scan_table(index, 0);
+						if( pos > 0 ) {
+worker:
+							pt3("  @@ Worker %d: scan_table[%3d]: %8ld\n", process_num, index, pos);
+							printf("  @@ Worker %d: scan_table[%3d]: %8ld\n", process_num, index, pos);
+=======
+						pos = scan_table(index, 0);
+						if( pos == -1 || pos == file_size ) break;
+						else if( pos > 0 ) {
+							pt3("  @@ Worker %d: scan_table[%3d]: %8ld\n", process_num, index, pos);
+							//len = papl.do_work(index, scan_table, mem);
+>>>>>>> .r135
+							len = papl.do_work(index, scan_table, mem, merge_table);
+
+<<<<<<< .mine
+							merge_table(index, 1) = papl.total_in;
+							merge_table(index, 0) = len;
+=======
+							//merge_table(index, 1) = papl.total_in;
+							merge_table(index, 0) = len;	// flag to end of block
+>>>>>>> .r135
+
+							pt4("  @@ Worker %d commit at row %3d: %u\t%u\n", process_num, index, papl.total_in, len);
+							//printf("  @@ Worker %d commit at row %3d: %u\t%u\n", process_num, index, papl.total_in, len);
+							index += WORKERS;
+						}
+						else if( pos == 0 && index == 0 ) goto worker;
+						else if( pos == -1 || pos == file_size ) break;
+						else usleep(1);
+					}
+					//fclose(papl.fp);
+			}
+			pt1("@@@@ Work process exit %d\n", process_num);
+			exit(0);
+
+		default:		// Merge
+			process_num++;
+			if (process_num < p_num ) goto create_process;
+			/* Create p_num of processes */
+
+			if( papl.ofp == NULL) {
+				pt0("output open\n");
+				papl.ofp = fopen(papl.output,"wb");
+			}
+
+<<<<<<< .mine
+=======
+			/*
+			len = 0;
+			index = 0;
+>>>>>>> .r135
+			for(;;) {
+				len = merge_table(index, 0);
+
+<<<<<<< .mine
+=======
+				tmp = merge_table(index, 0);
+				//tmp = merge_table[index];
+				if(tmp > len) {
+					pt2("    @@@@ fwrite %d %u\n", index, tmp - len);
+					fwrite( mem + index * MB * chunk_size + len,
+							sizeof(unsigned char),
+							tmp - len, papl.ofp );
+
+					///*
+					if( merge_table(index, 0 ) > 0 ) {
+						index ++;
+						len = 0;
+						if( scan_table(index,0) <= 0 ) break;
+						continue;
+					}
+					//*/
+					/*
+					if ( tmp % obuf_size ) {
+						index++;
+						len = 0;
+						if( scan_table(index,1) <= 0 ) break;
+						continue;
+						//if( merge_table[index] == 0) break;
+					}
+					*/
+
+					//len = tmp;
+				//} else usleep(1);
+			//}
+			*/
+			///*
+			for(;;) {
+				len = merge_table(index, 0);
+
+>>>>>>> .r135
+				if( len > 0 ) {
+					//err_detect(index, scan_table, merge_table);
+					pt2("    @@@@ fwrite %d %8u\n", index, len);
+					printf("    @@@@ fwrite %d %8u\n", index, len);
+					//printf("    @@@@ fwrite %d %8u\t%ld\n", index, len, offset);
+					fwrite( mem + index * MB * chunk_size,
+							sizeof(char), len, papl.ofp );
+					index++;
+<<<<<<< .mine
+					if( scan_table(index,0) == -1 ) break;
+=======
+					if( scan_table(index,0) <= 0 ) break;
+>>>>>>> .r135
+				} else usleep(1);
+			}
+<<<<<<< .mine
+
+			//for (i=0; i<9; i++)
+				//printf(" %d\t%ld\t%ld\n", i, merge_table(i, 2), merge_table(i,1));
+=======
+			//*/
+>>>>>>> .r135
+	}
+
+	for(i=0; i<p_num; i++) {
+		waitpid( pid[i], NULL, 0);
+		pt1("pid[%d] joined\n", i);
+	}
+
+	/* munmap */
+	if( munmap(mem, mem_len) )
+		fprintf(stderr, " munmap mem failed: %s\n", strerror(errno));
+	if( munmap(scan_table, scan_table_len * sizeof(long)) )
+		fprintf(stderr, " munmap scan_table failed: %s\n", strerror(errno));
+	if( munmap(merge_table, merge_table_len * sizeof(long) ) )
+		fprintf(stderr, " munmap merge_table failed: %s\n", strerror(errno));
+}
+

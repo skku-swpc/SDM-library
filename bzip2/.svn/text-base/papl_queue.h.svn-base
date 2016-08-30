@@ -1,0 +1,198 @@
+/* Parallel Architecture & Programming Lab. */
+/* This queue version is used as checking overhead in 'Unrealizable SMTX'*/
+/* Header file for queueing*/
+
+#include <stdint.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <sys/mman.h>
+
+#include "papl.h"
+
+//#define NPROCESS	WORKERS /* The number of queues */
+#define Qsize		0x200000
+
+#define CACHE_LINE 	64
+#define PAD(suffix, size)	char cachepad ##suffix [CACHE_LINE - size]
+#define BATCHSIZE   128
+#define CHUNKSIZE	0x8000
+//#define CHUNKSIZE	5000
+#define true		1
+#define false		0
+
+//static inline void 		papl_createQueue(void);
+//static inline void		papl_destroyQueue(void);
+//static void  	 		papl_produce(uint64_t, int);
+//static uint64_t 		papl_consume(int);
+//static void 			produce_chunk(void*, unsigned int, int);
+//static uint64_t			consume_chunk(void*, int);
+//static inline int		chk_queue_Empty(int);
+//static inline void		chk_queue_Full(int);
+
+typedef struct
+{
+	PAD(0, 0);
+
+	uint64_t c_index; 
+	uint64_t p_next;
+	PAD(1, sizeof(uint64_t)*2);
+
+	volatile uint64_t glb_p_index; 
+	PAD(2, sizeof(volatile uint64_t));
+	
+	volatile uint64_t glb_c_index;
+	PAD(3, sizeof(volatile uint64_t));
+
+	uint64_t p_index; 
+	uint64_t c_next;
+	PAD(4, sizeof(uint64_t)*2);
+	
+} papl_queue;
+
+//papl_queue* queue[NPROCESS];
+//unsigned char *Qdata[NPROCESS];
+papl_queue **queue;
+unsigned char **Qdata;
+
+static inline void papl_createQueue(int NPROCESS)
+{
+	int i;
+
+	Qdata = (unsigned char **) mmap(0, NPROCESS * sizeof(char *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1 , 0);
+	queue = (papl_queue **) mmap(0, NPROCESS * sizeof(papl_queue *), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1 , 0);
+	
+	for (i=0; i<NPROCESS; i++)
+	{
+		Qdata[i] = (unsigned char *) mmap(0, sizeof(char) * Qsize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1 , 0);
+		queue[i] = (papl_queue *) mmap(0, sizeof(papl_queue), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1 , 0);
+
+		queue[i]->p_index = 0;
+		queue[i]->c_index = 0;
+		queue[i]->glb_p_index = 0;
+		queue[i]->glb_p_index = 0;
+	}
+}
+
+static inline void papl_destroyQueue(NPROCESS)
+{
+	int i;
+	for (i=0; i<NPROCESS; i++) {
+		munmap(Qdata[i], sizeof(char) * Qsize);
+		munmap(queue[i], sizeof(papl_queue));
+	}
+	munmap(Qdata, NPROCESS * sizeof(char *));
+	munmap(queue, NPROCESS * sizeof(papl_queue *));
+
+}
+
+static inline void chk_queue_Full(int pid)
+{
+	if (((queue[pid]->p_next - queue[pid]->c_index) & (Qsize-CHUNKSIZE)) == (Qsize-CHUNKSIZE))
+	{
+
+		while (((queue[pid]->p_next - queue[pid]->glb_c_index) & (Qsize-CHUNKSIZE)) == (Qsize-CHUNKSIZE))
+			usleep(1);
+
+		queue[pid]->c_index = queue[pid]->glb_c_index;
+	}
+}
+
+static inline int chk_queue_Empty(int pid)
+{
+	if (queue[pid]->c_next == queue[pid]->p_index)
+	{
+		  while (queue[pid]->c_next == queue[pid]->glb_p_index)
+				usleep(1);
+		  
+		  queue[pid]->p_index = queue[pid]->glb_p_index;
+	}
+	return false;
+}
+
+/*
+static void papl_produce(uint64_t element, int pid)
+{
+	chk_queue_Full(pid);
+
+	Qdata[pid][queue[pid]->p_next] = element;
+	//printf("papl_produce: %d\n", queue[pid]->p_next);
+
+	queue[pid]->p_next ++; 
+	queue[pid]->p_next &= Qsize - 1;
+
+	if (element == -1) 
+		queue[pid]->glb_p_index = queue[pid]->p_next;
+
+	if (queue[pid]->p_next % (BATCHSIZE) == 0)
+		  queue[pid]->glb_p_index = queue[pid]->p_next;
+}
+
+static uint64_t papl_consume(int pid)
+{
+
+	chk_queue_Empty(pid);
+
+	uint64_t val = Qdata[pid][queue[pid]->c_next];
+
+	queue[pid]->c_next ++;
+	queue[pid]->c_next &= Qsize - 1;
+
+	if (queue[pid]->c_next % (BATCHSIZE) == 0)
+		  queue[pid]->glb_c_index = queue[pid]->c_next;
+
+	return val;
+}
+*/
+
+//static void produce_chunk(void *element, int pid)
+static void produce_chunk(void *buf, unsigned int len, int pid)
+{
+	chk_queue_Full(pid);
+
+	memcpy(&(Qdata[pid][queue[pid]->p_next]), &len, sizeof(int));
+	memcpy((&(Qdata[pid][queue[pid]->p_next]) + sizeof(int)), buf, len);
+
+	queue[pid]->p_next = queue[pid]->p_next + CHUNKSIZE;
+	queue[pid]->p_next &= Qsize -1;
+
+	queue[pid]->glb_p_index = queue[pid]->p_next;
+}
+
+
+static void produce_end(unsigned int val, int pid)
+{
+	chk_queue_Full(pid);
+
+	memcpy(&(Qdata[pid][queue[pid]->p_next]), &val, sizeof(int));
+
+	queue[pid]->p_next = queue[pid]->p_next + sizeof(int);
+	queue[pid]->p_next &= Qsize -1;
+
+	queue[pid]->glb_p_index = queue[pid]->p_next;
+}
+ 
+static uint64_t consume_chunk(void *buf, int pid)
+{
+	unsigned int len;
+	chk_queue_Empty(pid);
+
+	memcpy(&len, &(Qdata[pid][queue[pid]->c_next]), sizeof(int));
+
+	if( len == -1 || len == -2 ) {
+		queue[pid]->c_next = queue[pid]->c_next + sizeof(int);
+
+	} else {
+		memcpy(buf, (&(Qdata[pid][queue[pid]->c_next])+sizeof(int)), len);
+		queue[pid]->c_next = queue[pid]->c_next + CHUNKSIZE;
+	}
+
+	queue[pid]->c_next &= Qsize - 1;
+
+	queue[pid]->glb_c_index = queue[pid]->c_next;
+
+	return len;
+	//return (uint64_t)&(TempBuffer[pid]);
+}

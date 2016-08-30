@@ -1,0 +1,85 @@
+//#include <stdio.h>
+
+#define papltime
+
+#define papl_par
+//#define papl_trace
+
+<<<<<<< .mine
+#define workers 1	// number of workers
+=======
+#define WORKERS	4
+//#define p_num	4	// scan, decomp1, decomp2		numberof process
+>>>>>>> .r135
+// p_num MUST be greater than 2
+#define chunk_size	5
+
+#define scan_table_row	2
+#define merge_table_row 4
+
+#define MB (1024*1024)
+#define mem_len	100*MB
+#define scan_table_len	2*MB
+#define merge_table_len 2*MB
+
+#define obuf_size 5000
+
+#ifdef papltime
+#include <time.h>
+struct timespec papl_ts1, papl_ts2;
+#define get_time() clock_gettime(CLOCK_REALTIME, &papl_ts1);
+#define print_time(total) {             \
+    long t1, t2;                        \
+    __time_t s1, s2;                    \
+    clock_gettime(CLOCK_REALTIME,       \
+            &papl_ts2);                 \
+    s1 = papl_ts1.tv_sec;               \
+    t1 = papl_ts1.tv_nsec;              \
+    s2 = papl_ts2.tv_sec;               \
+    t2 = papl_ts2.tv_nsec;              \
+    total = (s2 - s1) * 1000000			\
+        + ((t2 - t1) / 1000);           \
+    printf("%.5f\n",                    \
+    (float) total/1000000);			    \
+}
+#else
+#define get_time()      /* */
+#define print_time(t)	/* */
+#endif
+
+#ifdef papl_trace
+#define pt0(a)	printf(a);
+#define pt1(a, b)	printf(a, b);
+#define pt2(a, b, c)	printf(a, b, c);
+#define pt3(a, b, c, d)	printf(a, b, c, d);
+#define pt4(a, b, c, d, e)	printf(a, b, c, d, e);
+#define pt5(a, b, c, d, e, f)	printf(a, b, c, d, e, f);
+#else
+#define pt0(a)	/* */
+#define pt1(a, b)	/* */
+#define pt2(a, b, c)	/* */
+#define pt3(a, b, c, d)	/* */
+#define pt4(a, b, c, d, e)	/* */
+#define pt5(a, b, c, d, e, f)	/* */
+#endif
+
+typedef struct {
+	int  (*scan)();
+	int (*set_param)();
+	unsigned int  (*do_work)();
+
+	char *input;
+	char *output;
+	//int  save_len;
+
+	FILE *fp;
+	FILE *ofp;
+
+	void *db;
+	unsigned int total_in;		// unused
+} PAPL;
+
+PAPL papl;
+
+void papl_exec();
+

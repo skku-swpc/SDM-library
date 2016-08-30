@@ -1,0 +1,104 @@
+#define papltime
+
+//#define papl_par
+//#define papl_trace
+
+#define p_num	4	// scan, decomp1, decomp2		number of process
+// p_num MUST be greater than 2
+
+#define scan_table_row	50
+#define merge_table_row 50
+#define chunk_size	1
+
+#define MB (1024*1024)
+#define mem_len	100*MB
+#define scan_table_len	1*MB
+#define merge_table_len 1*MB
+
+#ifdef papltime
+#include <time.h>
+struct timespec papl_ts1, papl_ts2;
+#define get_time() clock_gettime(CLOCK_REALTIME, &papl_ts1);
+#define print_time(total) {             \
+    long t1, t2;                        \
+    __time_t s1, s2;                    \
+    clock_gettime(CLOCK_REALTIME,       \
+            &papl_ts2);                 \
+    s1 = papl_ts1.tv_sec;               \
+    t1 = papl_ts1.tv_nsec;              \
+    s2 = papl_ts2.tv_sec;               \
+    t2 = papl_ts2.tv_nsec;              \
+    total = (s2 - s1) * 1000000			\
+        + ((t2 - t1) / 1000);           \
+    printf("%.5f\n",                    \
+    (float) total/1000000);			    \
+}
+#else
+#define get_time()      /* */
+#define print_time(t)	/* */
+#endif
+
+#define papl_mmap(mem, m_name, m_size) {							\
+fd = shm_open(m_name, O_CREAT | O_TRUNC | O_RDWR, 0006);			\
+if (fd == -1) fprintf(stderr, "  ERROR @ shm_open\n");				\
+r = ftruncate(fd, m_size);											\
+if ( r ) fprintf(stderr, "  ERROR @ ftruncate\n");					\
+mem = mmap(0, m_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);	\
+if (mem == MAP_FAILED) fprintf(stderr, "  ERROR @ mmap\n");			\
+}
+
+#define papl_munmap(shm_name, mem, l) {		\
+	if ( munmap(mem, l) )						\
+		fprintf(stderr, "  ERROR @ munmap\n");	\
+	shm_unlink(shm_name);						\
+}
+
+#ifdef papl_trace
+#define pt0(a)	printf(a)
+#define pt1(a, b)	printf(a, b)
+#define pt2(a, b, c)	printf(a, b, c)
+#define pt3(a, b, c, d)	printf(a, b, c, d)
+#define pt4(a, b, c, d, e)	printf(a, b, c, d, e)
+#define pt5(a, b, c, d, e, f)	printf(a, b, c, d, e, f)
+#else
+#define pt0(a)	/* */
+#define pt1(a, b)	/* */
+#define pt2(a, b, c)	/* */
+#define pt3(a, b, c, d)	/* */
+#define pt4(a, b, c, d, e)	/* */
+#define pt5(a, b, c, d, e, f)	/* */
+#endif
+
+typedef struct {
+	long type;
+	unsigned int index;
+	int kill;
+} q_t;
+
+typedef struct {
+	int  (*scan)();
+	//int  (*speculate)();
+	//void (*init)();
+	unsigned int (*set_param)();
+	int  (*do_work)();
+
+	char *input;
+	char *output;
+	//int  save_len;
+
+	FILE *fp;
+	FILE *ofp;
+
+	/* bzip2 */
+
+	void *bzf;
+	unsigned int total_in;
+	unsigned int bn;
+} PAPL;
+
+PAPL papl;
+
+#define misspeculation 1
+#define EndOfFile 2
+
+void papl_exec();
