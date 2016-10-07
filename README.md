@@ -45,17 +45,19 @@ Configuration parameters for SDM execution are defined in conf structure. **chun
 |out_file|	char*|	Output file|	Name of output file|
 
 ### RETURN VALUES
-The **predict_boundary** function returns the starting position of the next chunk, which is sent to both decompressor stage (for decompression) and merger stage (for misspeculation detection). The merger process is responsible for misspeculation detection and recovery. It compares the predicted pos value received from the scanner process with the corresponding, non-speculative pos value received from a decompressor process.
 
-If a misspeculation is detected, all speculative scanner and de- compressor processes are squashed, and the rest of the program is sequentially executed. It is our design decision not to restart parallel execution since the prediction algorithms 
+**next_pos = predict_boundary(conf.in_file, pos, conf.chunk_size, &eof)**
+
+* The **predict_boundary** function returns the starting position of the next chunk, which is sent to both decompressor stage (for decompression) and merger stage (for misspeculation detection). The merger process is responsible for misspeculation detection and recovery. It compares the predicted **pos** (**next_pos**) value received from the scanner process with the corresponding, non-speculative **pos** value received from a decompressor process.
+
+* If a misspeculation is detected, all speculative scanner and de- compressor processes are squashed, and the rest of the program is sequentially executed. It is our design decision not to restart parallel execution since the prediction algorithms 
 
 ### AUTHORS
-Hakbeom Jang (<hakbeom@.skku.edu>) and Channoh Kim (<channoh@skku.edu>)
-Parallel Architecture and Programming Lab, Sungkyunkwan University
-* [LCTES '13] Hakbeom Jang, Channoh Kim, and Jae W. Lee, "practical speculative parallelization of variable-length decompression algorithms", 14th ACM SIGPLAN/SIGBED International Conference on L nguages, Compilers, and Tools for Embedded Systems (LCTES), Seattle, Washington, June 2013. (Also appeared in ACM SIGPLAN Notices, 48(5), May 2013.)
+Hakbeom Jang (<hakbeom@.skku.edu>), Channoh Kim (<channoh@skku.edu>) and Jae W. Lee (<jaewlee@snu.ac.kr>)
+* [LCTES '13] Hakbeom Jang, Channoh Kim, and Jae W. Lee, "[practical speculative parallelization of variable-length decompression algorithms](http://dl.acm.org/citation.cfm?id=2465557)", 14th ACM SIGPLAN/SIGBED International Conference on L nguages, Compilers, and Tools for Embedded Systems (LCTES), Seattle, Washington, June 2013. (Also appeared in ACM SIGPLAN Notices, 48(5), May 2013.)
 
+Architecture and Code Optimization Lab, Seoul National University
 
 
 ### ACKNOWLEDGMENT
 The development of this package was supported by the IT R&D program of MKE/KEIT (No. 10041244, SmartTV 2.0 Software Platform).
-
