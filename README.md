@@ -19,7 +19,7 @@ Copy the libsdm.so.1.0.1 to your target_app directory
 
 ## **Example: SDM_bzip2**
 
-SDM_bzip2 is a parallel implementation of the bzip2 decompressor that uses pattern matching based prediction (called magic header: 0x314159265359)  algorithm.
+SDM_bzip2 is a parallel implementation of the bzip2 decompressor using SDM library.
 
 ### **Building and Running this example**
 
