@@ -24,6 +24,7 @@ SDM_bzip2 is a parallel implementation of the bzip2 decompressor using SDM libra
 ### **Building and Running this example**
 
 * #### **Build**
+Port to SDM libary in Makefile (Done).
 
 	$ cd bzip2/
 
