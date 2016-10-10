@@ -29,7 +29,7 @@ Click to download the latest version.
 	$ ./bzip2 -d target_file.bz2
 
 ## **Benchmark results**
-The following benchmark was performed using Samsung Exynos 4412 quad-core platform (representing “fat” cores) and Tilera TILE-Gx8036 36-core platform (representing “thin” manycores). Three inputs taken from public domains are used for each program (Firefox 1.7.13, Linux kernel 3.6.1, and SPEC2000 ref input).
+The following benchmarks were performed using Samsung Exynos 4412 quad-core platform (representing “fat” cores) and Tilera TILE-Gx8036 36-core platform (representing “thin” manycores). Three inputs taken from public domains are used for each program (Firefox 1.7.13, Linux kernel 3.6.1, and SPEC2000 ref input).
 
 * [Benchmark results](https://github.com/skku-swpc/SDM_bzip2/blob/master/benchmark_results.pdf)
 
